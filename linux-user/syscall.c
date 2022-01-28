@@ -7810,6 +7810,7 @@ static int do_futex(CPUState *cpu, target_ulong uaddr, int op, int val,
                              op, val, NULL, NULL, 0);
     case FUTEX_REQUEUE:
     case FUTEX_CMP_REQUEUE:
+    case FUTEX_CMP_REQUEUE_PI:
     case FUTEX_WAKE_OP:
         /* For FUTEX_REQUEUE, FUTEX_CMP_REQUEUE, and FUTEX_WAKE_OP, the
            TIMEOUT parameter is interpreted as a uint32_t by the kernel.
@@ -7819,7 +7820,33 @@ static int do_futex(CPUState *cpu, target_ulong uaddr, int op, int val,
         pts = (struct timespec *)(uintptr_t) timeout;
         return do_safe_futex(g2h(cpu, uaddr), op, val, pts, g2h(cpu, uaddr2),
                              (base_op == FUTEX_CMP_REQUEUE
+                              || base_op == FUTEX_CMP_REQUEUE_PI
                               ? tswap32(val3) : val3));
+    case FUTEX_LOCK_PI:
+        if (timeout) {
+            pts = &ts;
+            target_to_host_timespec(pts, timeout);
+        } else {
+            pts = NULL;
+        }
+        return do_safe_futex(g2h(cpu, uaddr),
+                             op, 0, pts, NULL, 0);
+    case FUTEX_UNLOCK_PI:
+        return do_safe_futex(g2h(cpu, uaddr),
+                             op, 0, NULL, NULL, 0);
+    case FUTEX_TRYLOCK_PI:
+        return do_safe_futex(g2h(cpu, uaddr),
+                             op, 0, NULL, NULL, 0);
+    case FUTEX_WAIT_REQUEUE_PI:
+        if (timeout) {
+            pts = &ts;
+            target_to_host_timespec(pts, timeout);
+        } else {
+            pts = NULL;
+        }
+        return do_safe_futex(g2h(cpu, uaddr),
+                            op, val, pts, g2h(cpu, uaddr2),
+                            0);
     default:
         return -TARGET_ENOSYS;
     }
@@ -7860,6 +7887,7 @@ static int do_futex_time64(CPUState *cpu, target_ulong uaddr, int op,
         return do_safe_futex(g2h(cpu, uaddr), op, val, NULL, NULL, 0);
     case FUTEX_REQUEUE:
     case FUTEX_CMP_REQUEUE:
+    case FUTEX_CMP_REQUEUE_PI:
     case FUTEX_WAKE_OP:
         /* For FUTEX_REQUEUE, FUTEX_CMP_REQUEUE, and FUTEX_WAKE_OP, the
            TIMEOUT parameter is interpreted as a uint32_t by the kernel.
@@ -7869,7 +7897,37 @@ static int do_futex_time64(CPUState *cpu, target_ulong uaddr, int op,
         pts = (struct timespec *)(uintptr_t) timeout;
         return do_safe_futex(g2h(cpu, uaddr), op, val, pts, g2h(cpu, uaddr2),
                              (base_op == FUTEX_CMP_REQUEUE
+                              || base_op == FUTEX_CMP_REQUEUE_PI
                               ? tswap32(val3) : val3));
+    case FUTEX_LOCK_PI:
+        if (timeout) {
+            pts = &ts;
+            if (target_to_host_timespec64(pts, timeout)) {
+                return -TARGET_EFAULT;
+            }
+        } else {
+            pts = NULL;
+        }
+        return do_safe_futex(g2h(cpu, uaddr),
+                             op, 0, pts, NULL, 0);
+    case FUTEX_UNLOCK_PI:
+        return do_safe_futex(g2h(cpu, uaddr),
+                             op, 0, NULL, NULL, 0);
+    case FUTEX_TRYLOCK_PI:
+        return do_safe_futex(g2h(cpu, uaddr),
+                             op, 0, NULL, NULL, 0);
+    case FUTEX_WAIT_REQUEUE_PI:
+        if (timeout) {
+            pts = &ts;
+            if (target_to_host_timespec64(pts, timeout)) {
+                return -TARGET_EFAULT;
+            }
+        } else {
+            pts = NULL;
+        }
+        return do_safe_futex(g2h(cpu, uaddr),
+                            op, val, pts, g2h(cpu, uaddr2),
+                            0);
     default:
         return -TARGET_ENOSYS;
     }
