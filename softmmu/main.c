@@ -30,9 +30,42 @@
 #include <SDL.h>
 #endif
 
+#include "exec/memory.h"
+#include "exec/address-spaces.h"
+
+#include <stdint.h>
+
+void cemu_mmio(unsigned long addr, void *buf, unsigned long len, bool is_write);
+
+void cemu_mmio(unsigned long addr, void *buf, unsigned long len, bool is_write) {
+    //fprintf(stderr, "mmio addr %ld len %ld is_write %d\n", addr, len, is_write);
+    MemTxAttrs attrs = MEMTXATTRS_UNSPECIFIED;
+    address_space_rw(&address_space_memory, addr,
+                            attrs, buf,
+                            len, is_write);
+    return;
+}
+
+void cemu_main(const char *);
+
+static void *cemu_thread_fn(void *arg)
+{
+    cemu_main("/home/zenithal/fw_payload_qemu_uart.bin");
+    return arg;
+}
+
+static void cemu_thread(void)
+{
+    QemuThread q;
+    qemu_thread_create(&q, "cemu", cemu_thread_fn,
+                       &q, QEMU_THREAD_JOINABLE);
+}
+
 int qemu_default_main(void)
 {
     int status;
+
+    cemu_thread();
 
     status = qemu_main_loop();
     qemu_cleanup();
